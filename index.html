@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Fältskytte – stationsberäknare</title>
+<style>
+:root{--bg:#f4f6f3;--fg:#1c231e;--card:#fff;--mu:#5a665e;--ac:#2f6b3f;--bd:#d3dad3;--bad:#b3261e;--in:#f0f3ef}
+@media(prefers-color-scheme:dark){:root{--bg:#151916;--fg:#e8ece8;--card:#202621;--mu:#9aa79d;--ac:#6fbf86;--bd:#38413a;--bad:#ff8a80;--in:#2a312b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;padding:12px;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+main{max-width:900px;margin:0 auto}
+h1{font-size:20px;margin:4px 0 2px}h2{font-size:16px;margin:0 0 8px}
+.mu{color:var(--mu);font-size:13px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin:10px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.pwc{border:1px solid var(--bd);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;flex:1;min-width:220px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mu);gap:3px}
+select,input[type=number]{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:6px;font-size:14px;max-width:100%}
+input[type=number]{width:90px}
+.chk{flex-direction:row;align-items:center;gap:6px;font-size:14px;color:var(--fg)}
+button{background:var(--ac);color:#fff;border:0;border-radius:6px;padding:7px 12px;font-size:14px;cursor:pointer}
+button.s{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+button.x{background:transparent;color:var(--bad);border:1px solid var(--bad);padding:4px 9px}
+.figs{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.fr{display:flex;gap:8px;align-items:center}.fr select{flex:1;min-width:0}
+.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border-bottom:1px solid var(--bd);padding:5px 6px;text-align:left;white-space:nowrap}
+th{font-size:12px;color:var(--mu);font-weight:600}
+.bad{color:var(--bad);font-weight:600}
+.big{font-size:22px;font-weight:700;color:var(--ac)}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.sum>div{border:1px solid var(--bd);border-radius:8px;padding:10px}
+ul{margin:6px 0 0;padding-left:18px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>Fältskytte – stationsberäknare</h1>
+<div class="mu">Enligt Svenska Pistolskytteförbundets Skjuthandbok upplaga 21 (2026), D.6, D.7.1 och D.10.4–D.10.6. Vapengrupp A &amp; R, B och C. Magnumfält (del E) ingår inte. Poängfältskjutning är en egen tävlingsform och ingår inte i denna beräkning.</div>
+
+<div class="card">
+<h2>Stationens inställningar</h2>
+<div class="row">
+<label>Utgångsställning<select id="lift"></select></label>
+<label class="chk"><input type="checkbox" id="dark"> Mörkerfältskjutning</label>
+</div>
+<div class="mu" id="liftinfo" style="margin-top:6px"></div>
+</div>
+
+<div class="card">
+<h2>Per vapengrupp: skjutställning och antal skott</h2>
+<div class="row" id="pwrow"></div>
+<div class="mu" style="margin-top:6px">Skjutställningen gäller hela stationen för respektive vapengrupp. Med stödhand används en figur ett nummer högre i gruppen (D.10.6.1). Min och max anger tillåtet antal skott per målgrupp för vapengruppen.</div>
+</div>
+
+<div id="groups"></div>
+<div class="row"><button id="addg">+ Lägg till målgrupp</button><span class="mu" id="gcount"></span></div>
+
+<div class="card">
+<h2>Stationens sammanlagda skjuttid</h2>
+<div class="mu" id="shotsum"></div>
+<div class="sum" id="sum" style="margin-top:8px"></div>
+<ul id="rules"></ul>
+<div class="row" style="margin-top:10px"><button class="s" id="copy">Kopiera sammanställning</button><span class="mu" id="cmsg"></span></div>
+</div>
+
+<div class="mu">Skjuttid per målgrupp = antal skott × sekunder per skott × (valt avstånd ÷ maxavstånd). Sekunder per skott vid maxavstånd är 2,0 (A &amp; R), 1,75 (B) och 1,5 (C). Mörkerfältskjutning ger 30 % längre skjuttid på skjutningen. Lyft och omriktning ingår inte i de 30 %. Summan avrundas uppåt till hel sekund. Beräkningen anger minsta tillåtna skjuttid, och tiden får ökas för en lättare skjutning.</div>
+</main>
+
+<script>
+const D={0:[80,90,100],1:[70,80,90],2:[60,65,75],3:[50,55,65],4:[45,50,55],5:[40,45,50],6:[35,40,45],7:[30,35,40],8:[27,32,36],9:[24,27,30],10:[20,22,25],11:[16,18,20],12:[14,16,18],13:[12,14,16],14:[7,8,9]};
+const W=['A & R','B','C'],N=[2,1.75,1.5];
+const RE_MIN=1.5;
+const RAW=`1|B 100|55x100
+2|B 65|50x65
+3|C 50|50x45
+3|Bildäck bakifrån|42x61
+3|PPC-tavla|42x62
+4|1/3|52x48
+4|Sexkant 3|44x63
+4|Tunnan|40x50
+5|B 45|35x45
+5|C 40|40x36
+5|Kvadraten 3|42x42
+5|L3 vertikal|43x100
+5|Rubinen|37x50
+6|C 35|35x31,5
+6|L3 horisontell|100x43
+6|1/4 rak|49x33
+6|1/4 höger/vänster|60x35
+6|A-rondell 2|Ø33
+6|Bildäck sida|67x34
+6|Sexkant 2|33x46
+7|C 30|30x27
+7|L2 vertikal|30x70
+7|S 25 vertikal|25x62,5
+7|Rapporthund|25x68
+7|1/1 miniatyr|
+8|C 25|25x22,5
+8|L2 horisontell|70x30
+8|S 20 vertikal|20x50
+8|S 25 horisontell|62,5x25
+8|1/6 rak|45x26
+8|1/6 höger/vänster|45x26
+8|A-triangel 2|39x29
+8|B-triangel 2|28x26
+8|A-oval 3|24x39
+8|Sexkant 1|23x32
+9|L1 vertikal|19x45
+9|S 20 horisontell|50x20
+9|1/7 huvud|20x26
+9|1/8|37x21
+9|A-rondell 1|Ø22
+9|A-oval 2|19x26
+9|B-rondell 3|Ø21
+9|Diamanten|29,5x21
+9|Ovalen nr 3|23,7x47
+10|C 20|20x18
+10|L1 horisontell|45x19
+10|B-oval 2|18x44
+10|B-rondell 2|Ø18
+10|Canaxa-ovalen vertikal|28x17
+10|Ovalen nr 2 vertikal|30x15
+11|S 15 D|15x37,5
+11|Tunna D|16x20
+11|Bunkerspringa vertikal|49x13
+11|B-triangel 1|22x20
+11|Canaxa-ovalen horisontell|28x17
+11|Flaskmål vertikal|14x39
+11|Kvadraten nr 2|23x23
+11|Ovalen nr 2 horisontell|30x15
+12|C 15 D|15x13,5
+12|Kvadraten 1|17x17
+12|A-triangel 1|23x21
+12|A-oval 1|14x20
+12|B-oval 1 horisontell|14,5x29
+12|Ovalen nr 1 vertikal|10,4x20
+12|Bunkerspringa horisontell|49x13
+12|Flaskmål horisontell|39x14
+12|S10D vertikal|10x25
+13|S10D horisontell|25x10
+13|B-rondell 1|Ø12
+13|Ovalen nr 1 horisontell|20x10,4
+13|HJ snabbmål|
+13|Lurifaxen (ej poängmål)|18x27
+13|Stolpskottet|30x59
+13|SWE-målen|
+13|Skidskyttemål|Ø11
+14|Sköldmål|5,5x15,5`;
+const F=RAW.split('\n').map(l=>{const[g,n,m]=l.split('|');return{g:+g,n,m:m||''}});
+let OPT='',last=null;
+F.forEach((f,i)=>{if(f.g!==last){if(last!==null)OPT+='</optgroup>';OPT+=`<optgroup label="Grupp ${f.g}">`;last=f.g}OPT+=`<option value="${i}">${f.n}${f.m?' ('+f.m+' cm)':''}</option>`});
+OPT+='</optgroup>';
+const DEF=F.findIndex(f=>f.n==='C 30');
+const $=s=>document.querySelector(s);
+const cl=x=>Math.min(14,Math.max(0,x));
+const f1=x=>(Math.round(x*10)/10).toString().replace('.',',');
+const MVT={fast:'Fast mål',popup:'Uppdykande (synlig under skjuttiden)',fall:'Alla mål uppe, faller i given ordning',side:'Rörligt i sidled',swing:'Svängande/gungande/framsvängande'};
+const MVI={popup:'Tiden räknas från att målen blir synliga tills de försvinner. Uppdykande mål får inte vara så höga att de svajar (D.10.5, D.10.6).',fall:'Alla mål uppe från början och faller i given ordning (se exempel 3 i D.10.6.3).',side:'Hastigheten ska anpassas till figurstorlek och avstånd och bör inte överstiga 1,5 m/s (D.10.6).',swing:'Vid rörliga mål ska avståndet anpassas efter målhastighet (D.10.5.2).',fast:''};
+const mk=n=>({figs:[DEF],shots:n,hits:6,mv:'fast',spd:1,turn:1.5,d:['','',''],diag:false});
+let G=[mk(6)];
+const st={lift:1.5,dark:false,pw:[0,0,0],smin:[1,1,1],smax:[6,6,6]};
+let prevMand=null;
+const mandatory=()=>['fast','fall'].includes(G[0].mv);
+function balance(){const n=G.length,b=Math.floor(6/n),r=6-b*n;G.forEach((g,i)=>g.shots=b+(i<r?1:0))}
+function renderLift(mand){
+ const opts=(mand?[]:[['0','Ingen (rörligt mål först)']]).concat([['1.5','45° – lyft 1,5 s'],['2','45° – lyft 2,0 s']]);
+ if(mand&&st.lift===0)st.lift=1.5;
+ $('#lift').innerHTML=opts.map(([v,t])=>`<option value="${v}"${+v===st.lift?' selected':''}>${t}</option>`).join('');
+ $('#liftinfo').textContent=mand?'Skjutningen inleds mot fasta mål, så utgångsställning 45° är obligatorisk (D.10.4).':'Skjutningen inleds mot rörligt mål. Utgångsställning 45° kan användas men krävs inte.';
+}
+function renderPw(){
+ $('#pwrow').innerHTML=W.map((w,x)=>`<div class="pwc"><div class="mu"><b>Vapengrupp ${w}</b></div>
+ <label>Skjutställning<select data-pw="${x}"><option value="0"${st.pw[x]?'':' selected'}>Utan stödhand</option><option value="1"${st.pw[x]?' selected':''}>Med stödhand</option></select></label>
+ <div class="row"><label>Min skott per målgrupp<input type="number" min="1" max="6" data-smin="${x}" value="${st.smin[x]}"></label>
+ <label>Max skott per målgrupp<input type="number" min="1" max="6" data-smax="${x}" value="${st.smax[x]}"></label></div></div>`).join('');
+}
+function card(g,i){
+ return `<div class="card" data-i="${i}"><div class="row" style="justify-content:space-between"><h2>Målgrupp ${i+1}</h2>${G.length>1?'<button class="x" data-act="rg">Ta bort</button>':''}</div>
+ <div class="figs">${g.figs.map((k,j)=>`<div class="fr"><select data-k="fig" data-j="${j}">${OPT.replace(`value="${k}"`,`value="${k}" selected`)}</select>${g.figs.length>1?`<button class="x" data-act="rf" data-j="${j}">✕</button>`:''}</div>`).join('')}</div>
+ ${g.figs.length<6?`<button class="s" data-act="af">+ Lägg till mål (${g.figs.length}/6)</button>`:'<span class="mu">Max 6 mål</span>'}
+ <div class="row" style="margin-top:10px">
+ <label>Skott i målgruppen<input type="number" min="1" max="6" data-k="shots" value="${g.shots}"></label>
+ <label>Max träff/figur<input type="number" min="1" max="6" data-k="hits" value="${g.hits}"></label>
+ <label>Målspel<select data-k="mv">${Object.entries(MVT).map(([k,v])=>`<option value="${k}"${g.mv===k?' selected':''}>${v}</option>`).join('')}</select></label>
+ <label data-sp>Hastighet m/s<input type="number" step="0.1" min="0" data-k="spd" value="${g.spd}"></label>
+ ${i>0?`<label>Omriktning hit<select data-k="turn"><option value="1.5"${g.turn==1.5?' selected':''}>1,5 s (i linje på djupet)</option><option value="2"${g.turn==2?' selected':''}>2,0 s (i sida)</option></select></label>`:''}
+ <label class="chk"><input type="checkbox" data-k="diag"${g.diag?' checked':''}> Diagonalt placerade S-/L-mål</label>
+ </div>
+ <div class="row" style="margin-top:10px">${W.map((w,x)=>`<label>Avstånd ${w} (m)<input type="number" min="1" step="1" data-k="d" data-x="${x}" value="${g.d[x]}" placeholder="max"></label>`).join('')}<button class="s" data-act="mx">Sätt max</button></div>
+ <div class="mu" data-info style="margin-top:6px"></div>
+ <div class="sc" data-res style="margin-top:8px"></div></div>`;
+}
+function build(){
+ $('#groups').innerHTML=G.map(card).join('');
+ $('#addg').hidden=G.length>=6;
+ $('#gcount').textContent=`${G.length}/6 målgrupper`;
+ calc();
+}
+function gcalc(g){
+ const fs=g.figs.map(k=>F[k]);
+ const res=[0,1,2].map(w=>{
+  const effs=fs.map(f=>cl(f.g+(st.pw[w]?1:0)-(st.dark?1:0)+(g.diag?1:0)));
+  const max=Math.min(...effs.map(e=>D[e][w]));
+  const dist=+g.d[w]||max;
+  const over=dist>max;
+  const base=g.shots*N[w]*dist/max;
+  const t=st.dark?base*1.3:base;
+  return{w,effs,max,dist,over,t,sp:Math.min(40,Math.max(5,(dist-5)/2))};
+ });
+ return{fs,res};
+}
+function calc(){
+ const mand=mandatory();
+ if(mand!==prevMand){prevMand=mand;renderLift(mand)}else st.lift=+$('#lift').value;
+ st.dark=$('#dark').checked;
+ document.querySelectorAll('[data-pw]').forEach(s=>st.pw[+s.dataset.pw]=+s.value);
+ document.querySelectorAll('[data-smin]').forEach(s=>st.smin[+s.dataset.smin]=+s.value||1);
+ document.querySelectorAll('[data-smax]').forEach(s=>st.smax[+s.dataset.smax]=+s.value||1);
+ const sh=[0,0,0];let turns=0;const bad=[false,false,false];const msgs=[];const txt=[];
+ const total=G.reduce((a,g)=>a+(+g.shots||0),0);
+ const shotErr=total!==6;
+ if(shotErr)msgs.push(`Stationen har ${total} skott. Den ska alltid vara 6, och skott per målgrupp ska summera till 6.`);
+ W.forEach((w,x)=>{if(st.smin[x]>st.smax[x]){bad[x]=true;msgs.push(`Vapengrupp ${w}: min (${st.smin[x]}) är större än max (${st.smax[x]}).`)}});
+ G.forEach((g,i)=>{
+  const c=gcalc(g),el=document.querySelector(`[data-i="${i}"]`);
+  el.querySelector('[data-sp]').hidden=g.mv!=='side';
+  let inf=MVI[g.mv]||'';
+  if(g.mv==='side'&&g.spd>1.5){inf='⚠ Hastigheten överstiger 1,5 m/s. '+inf;msgs.push(`Målgrupp ${i+1}: rörlig hastighet överstiger 1,5 m/s.`)}
+  if(g.shots<1)msgs.push(`Målgrupp ${i+1}: minst ett skott krävs.`);
+  if(g.shots>g.figs.length*g.hits)msgs.push(`Målgrupp ${i+1}: ${g.shots} skott får inte rymmas i ${g.figs.length} figur(er) med max ${g.hits} träff per figur.`);
+  W.forEach((w,x)=>{if(g.shots<st.smin[x]||g.shots>st.smax[x]){bad[x]=true;msgs.push(`Målgrupp ${i+1}, vapengrupp ${w}: ${g.shots} skott ligger utanför tillåtet intervall ${st.smin[x]}–${st.smax[x]}.`)}});
+  const mods=[];
+  if(st.pw.some(Boolean))mods.push('stödhand: figur ett nummer högre grupp (ej längre avstånd)');
+  if(st.dark)mods.push('mörker: figur ett nummer lägre grupp och 30 % längre skjuttid');
+  if(g.diag)mods.push('diagonala S-/L-mål: ett gruppnummer högre');
+  el.querySelector('[data-info]').innerHTML=`${inf}${mods.length?'<br>Justering: '+mods.join('; ')+'.':''}`;
+  el.querySelector('[data-res]').innerHTML=`<table><tr><th>Vapengrupp</th><th>Skjutställning</th><th>Figurgrupp</th><th>Skott</th><th>Maxavstånd</th><th>Valt avstånd</th><th>Skjuttid</th><th>Mellanrum (ej verifierat)</th></tr>${c.res.map(x=>{if(x.over){bad[x.w]=true;msgs.push(`Målgrupp ${i+1}, ${W[x.w]}: valt avstånd ${x.dist} m överskrider maxavstånd ${x.max} m.`)}return `<tr><td>${W[x.w]}</td><td>${st.pw[x.w]?'med stödhand':'utan stödhand'}</td><td>${x.effs.join(' / ')}</td><td>${g.shots}</td><td>${x.max} m</td><td class="${x.over?'bad':''}">${x.dist} m${x.over?' – över max':''}</td><td>${f1(x.t)} s</td><td>${f1(x.sp)} cm${g.mv==='side'?` · rörelse ${f1(g.spd*x.t)} m`:''}</td></tr>`}).join('')}</table>`;
+  c.res.forEach(x=>sh[x.w]+=x.t);
+  if(i>0)turns+=g.turn;
+  txt.push(`Målgrupp ${i+1}: ${c.fs.map(f=>f.n).join(' + ')} | ${MVT[g.mv]} | ${g.shots} skott | max träff/figur ${g.hits} | max ${c.res.map(x=>W[x.w]+' '+x.max+' m').join(', ')} | valt ${c.res.map(x=>W[x.w]+' '+x.dist+' m').join(', ')}${i>0?' | omriktning '+f1(g.turn)+' s':''}`);
+ });
+ const out=[0,1,2].map(w=>{const raw=st.lift+sh[w]+turns;return{w,raw,fin:Math.ceil(raw-1e-9),bad:bad[w]||shotErr}});
+ $('#shotsum').textContent=`Skott totalt: ${total} av 6. Skott per målgrupp ska summera till 6.`;
+ $('#sum').innerHTML=out.map(o=>`<div><div class="mu">Vapengrupp ${W[o.w]}</div><div class="big">${o.bad?'Ogiltig':o.fin+' s'}</div><div class="mu">lyft ${f1(st.lift)} + skjutning ${f1(sh[o.w])} + omriktning ${f1(turns)} = ${f1(o.raw)} s${st.dark?' (skjutning med +30 % mörker)':''}</div></div>`).join('');
+ const rl=[];
+ msgs.forEach(m=>rl.push(`<span class="bad">${m}</span>`));
+ rl.push(mandatory()?'Utgångsställning 45° är obligatorisk eftersom skjutningen inleds mot fasta mål (D.10.4). Vapnet får lyftas först vid kommandot ”Eld”.':'Utgångsställning krävs inte när skjutningen inleds mot rörligt mål. Om 45° används adderas lyfttiden.');
+ rl.push('Skjutställning (utan eller med stödhand) väljs per vapengrupp. Med stödhand används en figur ett nummer högre i gruppen (D.10.6.1).');
+ rl.push('Stationen har alltid sex skott. Skott per målgrupp ska summera till sex och ligga inom min/max för varje vapengrupp.');
+ if(st.dark)rl.push('Mörkerfältskjutning: figur ett nummer lägre grupp (större figur). Skjutningen blir 30 % längre. Lyft och omriktning ingår inte i de 30 %.');
+ rl.push(`Omriktning mellan målgrupper är minst ${f1(RE_MIN)} s enligt D.10.6.2. Exemplen i D.10.6.3 använder 1,0 s, vilket är en avvikelse från handbokens text.`);
+ rl.push('Tiden räknas från kommandot ”Eld” till avslutande av ”Eld upphör”, som ska vara utdraget under tre sekunder. Vid rörliga mål räknas tiden från att målen blir synliga tills de försvinner (D.10.6).');
+ rl.push('Mellanrummet mellan figurer, (avstånd − 5) / 2 cm, är hämtat från magnumfältskjutning (E.7.1) och är inte verifierat för fältskjutning.');
+ rl.push('Skjuttid minst 2,0 (A &amp; R), 1,75 (B) respektive 1,5 (C) s/skott när figur står på maxavstånd.');
+ $('#rules').innerHTML=rl.map(x=>`<li>${x}</li>`).join('');
+ window._txt=`FÄLTSKJUTNINGSSTATION (Skjuthandbok upplaga 21, 2026)\nUtgångsställning: ${st.lift?'45°, lyft '+f1(st.lift)+' s':'ingen'}${st.dark?' | Mörker':''}\n${W.map((w,x)=>w+': '+(st.pw[x]?'med stödhand':'utan stödhand')+', '+st.smin[x]+'–'+st.smax[x]+' skott').join(' | ')}\nSkott totalt: ${total}\n${txt.join('\n')}\nMinsta skjuttid: ${out.map(o=>W[o.w]+' '+(o.bad?'ogiltig':o.fin+' s')).join(' | ')}\nBeräknat enligt Skjuthandbok upplaga 21 (2026).`;
+}
+function handle(e){
+ const t=e.target;
+ if(t.id==='lift'||t.id==='dark'||t.dataset.pw!==undefined||t.dataset.smin!==undefined||t.dataset.smax!==undefined)return calc();
+ const k=t.dataset.k;if(!k)return;
+ const i=+t.closest('[data-i]').dataset.i,g=G[i];
+ if(k==='fig')g.figs[+t.dataset.j]=+t.value;
+ else if(k==='d')g.d[+t.dataset.x]=t.value;
+ else if(k==='diag')g.diag=t.checked;
+ else if(k==='shots')g.shots=+t.value||0;
+ else if(k==='hits')g.hits=+t.value||1;
+ else if(k==='turn')g.turn=+t.value;
+ else if(k==='spd')g.spd=+t.value||0;
+ else g[k]=t.value;
+ calc();
+}
+document.addEventListener('change',handle);
+document.addEventListener('input',handle);
+document.addEventListener('click',e=>{
+ const b=e.target.closest('[data-act]');if(!b||b.id==='addg')return;
+ const el=b.closest('[data-i]');const i=el?+el.dataset.i:0;const g=G[i],a=b.dataset.act;
+ if(a==='af'&&g.figs.length<6)g.figs.push(DEF);
+ if(a==='rf')g.figs.splice(+b.dataset.j,1);
+ if(a==='rg'){G.splice(i,1);balance()}
+ if(a==='mx'){const c=gcalc(g);g.d=c.res.map(x=>x.max)}
+ build();
+});
+$('#addg').onclick=()=>{if(G.length<6){G.push(mk(1));balance();build()}};
+$('#copy').onclick=async()=>{try{await navigator.clipboard.writeText(window._txt);$('#cmsg').textContent='Kopierat.'}catch(e){$('#cmsg').textContent='Kunde inte kopiera.'}};
+renderPw();
+build();
+</script>
+</body>
+</html>
